@@ -37,4 +37,23 @@ else
     echo "✅ Docker installed successfully."
 fi
 echo
+echo "Checking Docker Compose..."
+
+if docker compose version >/dev/null 2>&1; then
+    echo "✅ Docker Compose is available."
+else
+    echo "❌ Docker Compose is not available."
+    echo "Reinstalling Docker Compose plugin..."
+
+    apt-get update
+    apt-get install -y docker-compose-plugin
+
+    if docker compose version >/dev/null 2>&1; then
+        echo "✅ Docker Compose installed successfully."
+    else
+        echo "❌ Docker Compose installation failed."
+        exit 1
+    fi
+fi
+echo
 echo "✅ Installer checks completed successfully."
