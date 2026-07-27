@@ -21,6 +21,20 @@ if ! grep -qi "Raspberry Pi OS" /etc/os-release; then
 fi
 
 echo "✅ Raspberry Pi OS detected."
-
 echo
-echo "Installer started successfully."
+echo "Checking Docker..."
+
+if command -v docker >/dev/null 2>&1; then
+    echo "✅ Docker is already installed."
+else
+    echo "Docker is not installed. Installing Docker..."
+
+    apt-get update
+    apt-get install -y ca-certificates curl
+
+    curl -fsSL https://get.docker.com | sh
+
+    echo "✅ Docker installed successfully."
+fi
+echo
+echo "✅ Installer checks completed successfully."
