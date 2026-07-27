@@ -70,5 +70,57 @@ echo "✅ Created:"
 echo "   $BRIDGE_DIR"
 echo "   $UPDATER_DIR"
 echo "   $REQUEST_DIR"
+
+echo
+echo "Downloading Billflow files..."
+
+REPO_BASE="https://raw.githubusercontent.com/abbashjz2/billflow-installer/main"
+
+download_file() {
+    local source_url="$1"
+    local destination="$2"
+
+    echo "Downloading: $destination"
+
+    curl -fsSL "$source_url" -o "$destination"
+}
+
+download_file \
+    "$REPO_BASE/docker-compose.prod.yml" \
+    "$BRIDGE_DIR/docker-compose.prod.yml"
+
+download_file \
+    "$REPO_BASE/.env.example" \
+    "$BRIDGE_DIR/.env.example"
+
+download_file \
+    "$REPO_BASE/host-updater/updater.js" \
+    "$UPDATER_DIR/updater.js"
+
+download_file \
+    "$REPO_BASE/host-updater/logger.js" \
+    "$UPDATER_DIR/logger.js"
+
+download_file \
+    "$REPO_BASE/host-updater/requestService.js" \
+    "$UPDATER_DIR/requestService.js"
+
+mkdir -p "$UPDATER_DIR/services"
+
+download_file \
+    "$REPO_BASE/host-updater/services/dockerService.js" \
+    "$UPDATER_DIR/services/dockerService.js"
+
+download_file \
+    "$REPO_BASE/host-updater/services/envService.js" \
+    "$UPDATER_DIR/services/envService.js"
+
+download_file \
+    "$REPO_BASE/host-updater/billflow-updater.service" \
+    "/etc/systemd/system/billflow-updater.service"
+
+echo "✅ Billflow files downloaded successfully."
+
+
 echo
 echo "✅ Installer checks completed successfully."
