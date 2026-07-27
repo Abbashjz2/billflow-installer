@@ -56,4 +56,19 @@ else
     fi
 fi
 echo
+echo "Creating Billflow directories..."
+
+BRIDGE_DIR="/home/pi/bridge-server"
+UPDATER_DIR="/opt/billflow-updater"
+REQUEST_DIR="/opt/billflow-updater/requests"
+
+mkdir -p "$BRIDGE_DIR"
+mkdir -p "$UPDATER_DIR"
+mkdir -p "$REQUEST_DIR"
+
+echo "✅ Created:"
+echo "   $BRIDGE_DIR"
+echo "   $UPDATER_DIR"
+echo "   $REQUEST_DIR"
+echo
 echo "✅ Installer checks completed successfully."
