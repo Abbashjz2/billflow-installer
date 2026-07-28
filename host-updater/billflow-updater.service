@@ -1,11 +1,12 @@
 [Unit]
 Description=Billflow Bridge Updater
-After=network.target docker.service
+After=network-online.target docker.service
+Wants=network-online.target
 Requires=docker.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/node /home/pi/bridge-server/host-updater/updater.js
+ExecStart=/usr/bin/node /opt/billflow-updater/updater.js
 Restart=always
 RestartSec=5
 User=root
