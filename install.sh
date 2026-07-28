@@ -17,10 +17,19 @@ if [ "${EUID}" -ne 0 ]; then
   exit 1
 fi
 
-if ! grep -qi "Raspberry Pi OS" /etc/os-release; then
-  echo "❌ This installer supports Raspberry Pi OS only."
-  exit 1
+IS_RASPBERRY_PI=false
+
+if [ -r /proc/device-tree/model ] &&
+   grep -qi "Raspberry Pi" /proc/device-tree/model; then
+    IS_RASPBERRY_PI=true
 fi
+
+if [ "$IS_RASPBERRY_PI" != true ]; then
+    echo "❌ This installer supports Raspberry Pi devices only."
+    exit 1
+fi
+
+echo "✅ Raspberry Pi detected."
 
 echo "======================================"
 echo " Billflow Bridge Installer"
