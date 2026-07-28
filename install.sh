@@ -16,7 +16,8 @@ done
 SUPABASE_URL="https://vcabaubdlvjzeczfyfgc.supabase.co"
 ACTIVATE_URL="${SUPABASE_URL}/functions/v1/activate-bridge"
 REPO_BASE="https://raw.githubusercontent.com/abbashjz2/billflow-installer/main"
-BRIDGE_DIR="/home/pi/bridge-server"
+BRIDGE_DIR="/opt/billflow-bridge"
+LEGACY_BRIDGE_DIR="/home/pi/bridge-server"
 UPDATER_DIR="/opt/billflow-updater"
 REQUEST_DIR="${UPDATER_DIR}/requests"
 DEFAULT_BRIDGE_VERSION="1.0.25"
@@ -36,13 +37,35 @@ if [ "${EUID}" -ne 0 ]; then
   exit 1
 fi
 
-PI_MODEL="$(tr -d '\0' </proc/device-tree/model 2>/dev/null || true)"
-if [[ "$PI_MODEL" != *"Raspberry Pi"* ]]; then
-  echo "❌ This installer supports Raspberry Pi hardware only."
+if [ ! -f /etc/os-release ]; then
+  echo "❌ Unsupported Linux system: /etc/os-release was not found."
   exit 1
 fi
 
-echo "✅ Raspberry Pi detected: $PI_MODEL"
+# shellcheck disable=SC1091
+source /etc/os-release
+
+case "${ID:-}" in
+  debian|ubuntu|raspbian)
+    ;;
+  *)
+    echo "❌ Unsupported Linux distribution: ${PRETTY_NAME:-unknown}"
+    echo "Supported systems: Debian, Ubuntu, and Raspberry Pi OS."
+    exit 1
+    ;;
+esac
+
+PI_MODEL="$(tr -d '\0' </proc/device-tree/model 2>/dev/null || true)"
+
+if [[ "$PI_MODEL" == *"Raspberry Pi"* ]]; then
+  PLATFORM_TYPE="raspberry-pi"
+  echo "✅ Raspberry Pi detected: $PI_MODEL"
+else
+  PLATFORM_TYPE="linux"
+  echo "✅ Supported Linux detected: ${PRETTY_NAME}"
+fi
+
+echo " Architecture: $(uname -m)"
 echo "======================================"
 echo " Billflow Bridge Installer"
 echo "======================================"
@@ -66,6 +89,15 @@ fi
 
 echo "[2/8] Creating directories..."
 mkdir -p "$BRIDGE_DIR" "$UPDATER_DIR/services" "$REQUEST_DIR"
+
+if [ -f "$LEGACY_BRIDGE_DIR/.env" ] && [ ! -f "$BRIDGE_DIR/.env" ]; then
+  echo "ℹ️  Migrating existing Bridge configuration..."
+
+  cp "$LEGACY_BRIDGE_DIR/.env" "$BRIDGE_DIR/.env"
+  chmod 600 "$BRIDGE_DIR/.env"
+
+  echo "✅ Existing configuration migrated to $BRIDGE_DIR"
+fi
 
 if [ "$DEV_MODE" = true ]; then
   echo "[DEV] Loading existing Bridge credentials..."
@@ -111,16 +143,48 @@ else
 fi
 
 echo "[3/8] Generating hardware fingerprint..."
+
 MACHINE_ID="$(cat /etc/machine-id 2>/dev/null || true)"
 CPU_SERIAL="$(awk -F ': ' '/^Serial/{print $2; exit}' /proc/cpuinfo 2>/dev/null || true)"
-if [ -z "$MACHINE_ID$CPU_SERIAL" ]; then
+PRODUCT_UUID="$(cat /sys/class/dmi/id/product_uuid 2>/dev/null || true)"
+PRIMARY_MAC="$(ip link 2>/dev/null | awk '/link\/ether/ {print $2; exit}')"
+
+if [ -z "$MACHINE_ID$CPU_SERIAL$PRODUCT_UUID$PRIMARY_MAC" ]; then
   echo "❌ Could not determine a stable hardware identity."
   exit 1
 fi
-HARDWARE_FINGERPRINT="$(printf 'mid:%s|serial:%s' "$MACHINE_ID" "$CPU_SERIAL" | sha256sum | awk '{print $1}')"
-HOSTNAME_VALUE="$(hostname)"
-OS_INFO="$(. /etc/os-release && printf '%s %s' "${PRETTY_NAME:-Raspberry Pi OS}" "$(uname -m)")"
 
+HARDWARE_FINGERPRINT="$(
+  printf 'mid:%s|serial:%s|uuid:%s|mac:%s' \
+    "$MACHINE_ID" \
+    "$CPU_SERIAL" \
+    "$PRODUCT_UUID" \
+    "$PRIMARY_MAC" |
+  sha256sum |
+  awk '{print $1}'
+)"
+
+HOSTNAME_VALUE="$(hostname)"
+OS_INFO="$(. /etc/os-release && printf '%s %s' "${PRETTY_NAME:-Linux}" "$(uname -m)")"
+ARCHITECTURE="$(uname -m)"
+
+case "$ARCHITECTURE" in
+  x86_64)
+    PLATFORM_ARCH="amd64"
+    ;;
+  aarch64)
+    PLATFORM_ARCH="arm64"
+    ;;
+  armv7l|armv6l)
+    PLATFORM_ARCH="armv7"
+    ;;
+  *)
+    echo "❌ Unsupported CPU architecture: $ARCHITECTURE"
+    exit 1
+    ;;
+esac
+
+echo " Architecture: $PLATFORM_ARCH"
 if [ "$DEV_MODE" = true ]; then
   echo "[4/8] Skipping activation in development mode..."
   PUBLIC_REF="development-mode"
