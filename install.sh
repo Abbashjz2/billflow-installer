@@ -19,7 +19,7 @@ REPO_BASE="https://raw.githubusercontent.com/abbashjz2/billflow-installer/main"
 BRIDGE_DIR="/opt/billflow-bridge"
 LEGACY_BRIDGE_DIR="/home/pi/bridge-server"
 UPDATE_AGENT_DIR="/opt/bridge-update-agent"
-DEFAULT_BRIDGE_VERSION="1.0.30"
+DEFAULT_BRIDGE_VERSION="1.0.31"
 EXISTING_ENV="${BRIDGE_DIR}/.env"
 ENV_BACKUP=""
 
@@ -240,7 +240,7 @@ values = {
     'INSTALLATION_ID': x['installation_id'],
     'DEVICE_SECRET': x['device_secret'],
     'PUBLIC_REF': x.get('public_ref', ''),
-    'BRIDGE_VERSION': x.get('bridge_version') or '1.0.30',
+    'BRIDGE_VERSION': x.get('bridge_version') or '1.0.31',
 }
 for k, v in values.items():
     print(f'{k}={shlex.quote(str(v))}')
