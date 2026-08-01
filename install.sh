@@ -80,7 +80,7 @@ fi
 
 echo "[1/8] Installing prerequisites..."
 apt-get update -qq
-apt-get install -y -qq ca-certificates curl nodejs python3 >/dev/null
+apt-get install -y -qq ca-certificates curl nodejs python3 openssl >/dev/null
 
 if ! command -v docker >/dev/null 2>&1; then
   curl -fsSL https://get.docker.com | sh
@@ -276,10 +276,26 @@ fi
 chmod 600 "$UPDATE_AGENT_DIR/server.js"
 chmod 700 "$UPDATE_AGENT_DIR/update-bridge.sh"
 
+UPDATE_AGENT_SECRET="$(openssl rand -hex 32)"
+
 echo "[6/8] Writing secure configuration..."
 if [ "$DEV_MODE" = true ]; then
   cp "$ENV_BACKUP" "$BRIDGE_DIR/.env"
   chmod 600 "$BRIDGE_DIR/.env"
+
+  if ! grep -q '^UPDATE_AGENT_URL=' "$BRIDGE_DIR/.env"; then
+  echo 'UPDATE_AGENT_URL=http://172.18.0.1:3067' >> "$BRIDGE_DIR/.env"
+fi
+
+if ! grep -q '^UPDATE_AGENT_SECRET=' "$BRIDGE_DIR/.env"; then
+  echo "UPDATE_AGENT_SECRET=${UPDATE_AGENT_SECRET}" >> "$BRIDGE_DIR/.env"
+fi
+
+if ! grep -q '^UPDATE_AGENT_TIMEOUT_MS=' "$BRIDGE_DIR/.env"; then
+  echo 'UPDATE_AGENT_TIMEOUT_MS=10000' >> "$BRIDGE_DIR/.env"
+fi
+
+
   rm -f "$ENV_BACKUP"
   ENV_BACKUP=""
   echo "✅ Existing .env restored unchanged."
@@ -300,6 +316,10 @@ BRIDGE_API_VERSION=1
 COMMAND_POLL_ENABLED=true
 HEALTH_REPORT_ENABLED=true
 TERMINAL_PORT=3066
+
+UPDATE_AGENT_URL=http://172.18.0.1:3067
+UPDATE_AGENT_SECRET=${UPDATE_AGENT_SECRET}
+UPDATE_AGENT_TIMEOUT_MS=10000
 
 MIKROTIK_USER=admin
 MIKROTIK_PASSWORD=
