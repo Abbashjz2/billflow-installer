@@ -54,7 +54,11 @@ case "${ID:-}" in
     ;;
 esac
 
-PI_MODEL="$(tr -d '\0' </proc/device-tree/model 2>/dev/null || true)"
+if [ -r /proc/device-tree/model ]; then
+  PI_MODEL="$(tr -d '\0' < /proc/device-tree/model)"
+else
+  PI_MODEL=""
+fi
 
 if [[ "$PI_MODEL" == *"Raspberry Pi"* ]]; then
   PLATFORM_TYPE="raspberry-pi"
@@ -260,6 +264,15 @@ download_file "$REPO_BASE/bridge-update-agent/update-bridge.sh" \
 download_file "$REPO_BASE/bridge-update-agent/bridge-update-agent.service" \
   "/etc/systemd/system/bridge-update-agent.service"
 
+
+download_file "$REPO_BASE/docker-compose.prod.yml" \
+  "$BRIDGE_DIR/docker-compose.prod.yml"
+
+if [ ! -s "$BRIDGE_DIR/docker-compose.prod.yml" ]; then
+  echo "❌ Failed to download docker-compose.prod.yml"
+  exit 1
+fi
+
 chmod 600 "$UPDATE_AGENT_DIR/server.js"
 chmod 700 "$UPDATE_AGENT_DIR/update-bridge.sh"
 
@@ -301,8 +314,17 @@ fi
 
 echo "[7/8] Starting Billflow Bridge..."
 cd "$BRIDGE_DIR"
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+
+docker compose \
+  --env-file .env \
+  -f docker-compose.prod.yml \
+  pull
+
+docker compose \
+  --env-file .env \
+  -f docker-compose.prod.yml \
+  up -d
+
 
 echo "[8/8] Enabling Bridge update agent..."
 

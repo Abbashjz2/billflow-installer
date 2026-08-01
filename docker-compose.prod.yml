@@ -13,8 +13,6 @@ services:
       # Raspberry Pi CPU temperature
       - /sys:/host/sys:ro
 
-      # Raspberry Pi model
-      - /proc/device-tree/model:/host/proc/device-tree/model:ro
 
       # Host operating-system information
       - /etc/os-release:/host/etc/os-release:ro
