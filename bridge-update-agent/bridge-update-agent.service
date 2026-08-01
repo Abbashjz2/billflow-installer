@@ -1,0 +1,17 @@
+[Unit]
+Description=Bridge Update Agent
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/bridge-update-agent
+Environment=UPDATE_AGENT_SECRET=8a6b49468c1737eb88e60fcf2bdbe435069866980cc8c7390c111bbd0bcf9f95
+ExecStart=/usr/bin/node /opt/bridge-update-agent/server.js
+Restart=always
+RestartSec=5
+Environment=UPDATE_AGENT_HOST=0.0.0.0
+
+[Install]
+WantedBy=multi-user.target

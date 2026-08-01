@@ -18,8 +18,7 @@ ACTIVATE_URL="${SUPABASE_URL}/functions/v1/activate-bridge"
 REPO_BASE="https://raw.githubusercontent.com/abbashjz2/billflow-installer/main"
 BRIDGE_DIR="/opt/billflow-bridge"
 LEGACY_BRIDGE_DIR="/home/pi/bridge-server"
-UPDATER_DIR="/opt/billflow-updater"
-REQUEST_DIR="${UPDATER_DIR}/requests"
+UPDATE_AGENT_DIR="/opt/bridge-update-agent"
 DEFAULT_BRIDGE_VERSION="1.0.25"
 EXISTING_ENV="${BRIDGE_DIR}/.env"
 ENV_BACKUP=""
@@ -88,7 +87,7 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 
 echo "[2/8] Creating directories..."
-mkdir -p "$BRIDGE_DIR" "$UPDATER_DIR/services" "$REQUEST_DIR"
+mkdir -p "$BRIDGE_DIR" "$UPDATE_AGENT_DIR"
 
 if [ -f "$LEGACY_BRIDGE_DIR/.env" ] && [ ! -f "$BRIDGE_DIR/.env" ]; then
   echo "ℹ️  Migrating existing Bridge configuration..."
@@ -252,13 +251,17 @@ download_file() {
   curl -fsSL --retry 3 --connect-timeout 15 "$1" -o "$2"
 }
 
-download_file "$REPO_BASE/docker-compose.prod.yml" "$BRIDGE_DIR/docker-compose.prod.yml"
-download_file "$REPO_BASE/host-updater/updater.js" "$UPDATER_DIR/updater.js"
-download_file "$REPO_BASE/host-updater/logger.js" "$UPDATER_DIR/logger.js"
-download_file "$REPO_BASE/host-updater/requestService.js" "$UPDATER_DIR/requestService.js"
-download_file "$REPO_BASE/host-updater/services/dockerService.js" "$UPDATER_DIR/services/dockerService.js"
-download_file "$REPO_BASE/host-updater/services/envService.js" "$UPDATER_DIR/services/envService.js"
-download_file "$REPO_BASE/host-updater/billflow-updater.service" "/etc/systemd/system/billflow-updater.service"
+download_file "$REPO_BASE/bridge-update-agent/server.js" \
+  "$UPDATE_AGENT_DIR/server.js"
+
+download_file "$REPO_BASE/bridge-update-agent/update-bridge.sh" \
+  "$UPDATE_AGENT_DIR/update-bridge.sh"
+
+download_file "$REPO_BASE/bridge-update-agent/bridge-update-agent.service" \
+  "/etc/systemd/system/bridge-update-agent.service"
+
+chmod 600 "$UPDATE_AGENT_DIR/server.js"
+chmod 700 "$UPDATE_AGENT_DIR/update-bridge.sh"
 
 echo "[6/8] Writing secure configuration..."
 if [ "$DEV_MODE" = true ]; then
@@ -301,9 +304,11 @@ cd "$BRIDGE_DIR"
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 
-echo "[8/8] Enabling updater..."
+echo "[8/8] Enabling Bridge update agent..."
+
+systemctl disable --now billflow-updater.service 2>/dev/null || true
 systemctl daemon-reload
-systemctl enable --now billflow-updater.service
+systemctl enable --now bridge-update-agent.service
 
 sleep 5
 if ! docker inspect -f '{{.State.Running}}' noc-server 2>/dev/null | grep -q true; then
