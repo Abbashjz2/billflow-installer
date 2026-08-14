@@ -13,6 +13,7 @@ for arg in "$@"; do
   esac
 done
 
+SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjYWJhdWJkbHZqemVjemZ5ZmdjIiwicm9sZSI6ImFub24iLCJp"
 SUPABASE_URL="https://vcabaubdlvjzeczfyfgc.supabase.co"
 ACTIVATE_URL="${SUPABASE_URL}/functions/v1/activate-bridge"
 REPO_BASE="https://raw.githubusercontent.com/abbashjz2/billflow-installer/main"
@@ -283,6 +284,10 @@ if [ "$DEV_MODE" = true ]; then
   cp "$ENV_BACKUP" "$BRIDGE_DIR/.env"
   chmod 600 "$BRIDGE_DIR/.env"
 
+  if ! grep -q '^SUPABASE_ANON_KEY=' "$BRIDGE_DIR/.env"; then
+  echo "SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> "$BRIDGE_DIR/.env"
+fi
+
   if ! grep -q '^UPDATE_AGENT_URL=' "$BRIDGE_DIR/.env"; then
   echo 'UPDATE_AGENT_URL=http://172.18.0.1:3067' >> "$BRIDGE_DIR/.env"
 fi
@@ -301,6 +306,7 @@ fi
   echo "✅ Existing .env restored unchanged."
 else
   cat > "$BRIDGE_DIR/.env" <<ENVEOF
+SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
 SUPABASE_URL=${SUPABASE_URL}
 SUPABASE_FUNCTIONS_URL=${SUPABASE_URL}/functions/v1
 BRIDGE_AUTH_URL=${SUPABASE_URL}/functions/v1/bridge-auth
