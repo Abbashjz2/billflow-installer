@@ -294,9 +294,11 @@ if [ "$DEV_MODE" = true ]; then
   cp "$ENV_BACKUP" "$BRIDGE_DIR/.env"
   chmod 600 "$BRIDGE_DIR/.env"
 
-  if ! grep -q '^SUPABASE_ANON_KEY=' "$BRIDGE_DIR/.env"; then
+  if grep -q '^SUPABASE_ANON_KEY=' "$BRIDGE_DIR/.env"; then
+  sed -i "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}|" "$BRIDGE_DIR/.env"
+  else
   echo "SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> "$BRIDGE_DIR/.env"
-fi
+  fi
 
   if ! grep -q '^UPDATE_AGENT_URL=' "$BRIDGE_DIR/.env"; then
   echo 'UPDATE_AGENT_URL=http://172.18.0.1:3067' >> "$BRIDGE_DIR/.env"
