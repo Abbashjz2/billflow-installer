@@ -117,20 +117,30 @@ if [ "$DEV_MODE" = true ]; then
   source "$EXISTING_ENV"
   set +a
 
-  REQUIRED_DEV_VARIABLES=(
-    SUPABASE_URL
-    TENANT_ID
-    INSTALLATION_ID
-    LICENSE_KEY
-    BRIDGE_VALIDATION_SECRET
-  )
+ REQUIRED_DEV_VARIABLES=(
+  SUPABASE_URL
+  TENANT_ID
+  INSTALLATION_ID
+)
 
-  for variable_name in "${REQUIRED_DEV_VARIABLES[@]}"; do
-    if [ -z "${!variable_name:-}" ]; then
-      echo "❌ Missing $variable_name in $EXISTING_ENV"
-      exit 1
-    fi
-  done
+for variable_name in "${REQUIRED_DEV_VARIABLES[@]}"; do
+  if [ -z "${!variable_name:-}" ]; then
+    echo "❌ Missing $variable_name in $EXISTING_ENV"
+    exit 1
+  fi
+done
+
+# Accept either production credentials or legacy credentials.
+if [ -n "${DEVICE_SECRET:-}" ]; then
+  echo "✅ Existing production credentials detected."
+elif [ -n "${LICENSE_KEY:-}" ] && [ -n "${BRIDGE_VALIDATION_SECRET:-}" ]; then
+  echo "✅ Existing legacy credentials detected."
+else
+  echo "❌ Existing Bridge credentials are incomplete."
+  echo "   Expected DEVICE_SECRET for production mode,"
+  echo "   or LICENSE_KEY + BRIDGE_VALIDATION_SECRET for legacy mode."
+  exit 1
+fi
 
   ENV_BACKUP="$(mktemp)"
   cp "$EXISTING_ENV" "$ENV_BACKUP"
