@@ -2,24 +2,98 @@
 set -Eeuo pipefail
 
 DEV_MODE=false
-for arg in "$@"; do
-  case "$arg" in
-    --dev) DEV_MODE=true ;;
+BRIDGE_INSTANCE_ID=""
+BRIDGE_PORT="3066"
+UPDATE_AGENT_PORT="3067"
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --dev)
+      DEV_MODE=true
+      shift
+      ;;
+    --instance)
+      if [ -z "${2:-}" ]; then
+        echo "❌ --instance requires a value."
+        exit 1
+      fi
+      BRIDGE_INSTANCE_ID="$2"
+      shift 2
+      ;;
+    --port)
+      if [ -z "${2:-}" ]; then
+        echo "❌ --port requires a value."
+        exit 1
+      fi
+      BRIDGE_PORT="$2"
+      shift 2
+      ;;
+    --update-agent-port)
+      if [ -z "${2:-}" ]; then
+        echo "❌ --update-agent-port requires a value."
+        exit 1
+      fi
+      UPDATE_AGENT_PORT="$2"
+      shift 2
+      ;;
     *)
-      echo "❌ Unknown argument: $arg"
-      echo "Supported option: --dev"
+      echo "❌ Unknown argument: $1"
+      echo "Supported options:"
+      echo "  --dev"
+      echo "  --instance <name>"
+      echo "  --port <port>"
+      echo "  --update-agent-port <port>"
       exit 1
       ;;
   esac
 done
 
+if [ -n "$BRIDGE_INSTANCE_ID" ] && [[ ! "$BRIDGE_INSTANCE_ID" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$ ]]; then
+  echo "❌ Invalid --instance value. Use 1-32 letters, numbers, _ or -, starting with a letter/number."
+  exit 1
+fi
+
+for port_value in "$BRIDGE_PORT" "$UPDATE_AGENT_PORT"; do
+  if [[ ! "$port_value" =~ ^[0-9]+$ ]] || [ "$port_value" -lt 1 ] || [ "$port_value" -gt 65535 ]; then
+    echo "❌ Invalid port: $port_value"
+    exit 1
+  fi
+done
+
+if [ "$BRIDGE_PORT" = "$UPDATE_AGENT_PORT" ]; then
+  echo "❌ Bridge port and update-agent port must be different."
+  exit 1
+fi
+
 INSTALLER_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjYWJhdWJkbHZqemVjemZ5ZmdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExNjgzNTgsImV4cCI6MjA4Njc0NDM1OH0.NXTdq0Qzq4QYPWqYyoUz2OwDaQVmgJcae3KQg_P8aK0"
+
 SUPABASE_URL="https://vcabaubdlvjzeczfyfgc.supabase.co"
 ACTIVATE_URL="${SUPABASE_URL}/functions/v1/activate-bridge"
 REPO_BASE="https://raw.githubusercontent.com/abbashjz2/billflow-installer/main"
-BRIDGE_DIR="/opt/billflow-bridge"
+
+if [ -n "$BRIDGE_INSTANCE_ID" ]; then
+  BRIDGE_DIR="/opt/billflow-bridges/$BRIDGE_INSTANCE_ID"
+  CONTAINER_NAME="noc-server-$BRIDGE_INSTANCE_ID"
+  CONTAINER_HOSTNAME="bridge-$BRIDGE_INSTANCE_ID"
+  COMPOSE_PROJECT_NAME="billflow-bridge-$BRIDGE_INSTANCE_ID"
+else
+  BRIDGE_DIR="/opt/billflow-bridge"
+  CONTAINER_NAME="noc-server"
+  CONTAINER_HOSTNAME="bridge-server"
+  COMPOSE_PROJECT_NAME="billflow-bridge"
+fi
+
 LEGACY_BRIDGE_DIR="/home/pi/bridge-server"
-UPDATE_AGENT_DIR="/opt/bridge-update-agent"
+if [ -n "$BRIDGE_INSTANCE_ID" ]; then
+  UPDATE_AGENT_DIR="/opt/bridge-update-agents/$BRIDGE_INSTANCE_ID"
+else
+  UPDATE_AGENT_DIR="/opt/bridge-update-agent"
+fi
+if [ -n "$BRIDGE_INSTANCE_ID" ]; then
+  UPDATE_AGENT_SERVICE="bridge-update-agent-$BRIDGE_INSTANCE_ID.service"
+else
+  UPDATE_AGENT_SERVICE="bridge-update-agent.service"
+fi
 DEFAULT_BRIDGE_VERSION="1.0.32"
 EXISTING_ENV="${BRIDGE_DIR}/.env"
 ENV_BACKUP=""
@@ -94,7 +168,7 @@ fi
 echo "[2/8] Creating directories..."
 mkdir -p "$BRIDGE_DIR" "$UPDATE_AGENT_DIR"
 
-if [ -f "$LEGACY_BRIDGE_DIR/.env" ] && [ ! -f "$BRIDGE_DIR/.env" ]; then
+if [ -z "$BRIDGE_INSTANCE_ID" ] && [ -f "$LEGACY_BRIDGE_DIR/.env" ] && [ ! -f "$BRIDGE_DIR/.env" ]; then
   echo "ℹ️  Migrating existing Bridge configuration..."
 
   cp "$LEGACY_BRIDGE_DIR/.env" "$BRIDGE_DIR/.env"
@@ -168,7 +242,7 @@ if [ -z "$MACHINE_ID$CPU_SERIAL$PRODUCT_UUID$PRIMARY_MAC" ]; then
   exit 1
 fi
 
-HARDWARE_FINGERPRINT="$(
+BASE_HARDWARE_FINGERPRINT="$(
   printf 'mid:%s|serial:%s|uuid:%s|mac:%s' \
     "$MACHINE_ID" \
     "$CPU_SERIAL" \
@@ -177,6 +251,16 @@ HARDWARE_FINGERPRINT="$(
   sha256sum |
   awk '{print $1}'
 )"
+
+if [ -n "$BRIDGE_INSTANCE_ID" ]; then
+  HARDWARE_FINGERPRINT="$(
+    printf '%s|instance:%s' "$BASE_HARDWARE_FINGERPRINT" "$BRIDGE_INSTANCE_ID" |
+    sha256sum |
+    awk '{print $1}'
+  )"
+else
+  HARDWARE_FINGERPRINT="$BASE_HARDWARE_FINGERPRINT"
+fi
 
 HOSTNAME_VALUE="$(hostname)"
 OS_INFO="$(. /etc/os-release && printf '%s %s' "${PRETTY_NAME:-Linux}" "$(uname -m)")"
@@ -273,8 +357,12 @@ download_file "$REPO_BASE/bridge-update-agent/update-bridge.sh" \
   "$UPDATE_AGENT_DIR/update-bridge.sh"
 
 download_file "$REPO_BASE/bridge-update-agent/bridge-update-agent.service" \
-  "/etc/systemd/system/bridge-update-agent.service"
+  "/etc/systemd/system/$UPDATE_AGENT_SERVICE"
 
+sed -i \
+  -e "s|__UPDATE_AGENT_DIR__|${UPDATE_AGENT_DIR}|g" \
+  -e "s|__BRIDGE_DIR__|${BRIDGE_DIR}|g" \
+  "/etc/systemd/system/$UPDATE_AGENT_SERVICE"
 
 download_file "$REPO_BASE/docker-compose.prod.yml" \
   "$BRIDGE_DIR/docker-compose.prod.yml"
@@ -300,17 +388,32 @@ if [ "$DEV_MODE" = true ]; then
   echo "SUPABASE_ANON_KEY=${INSTALLER_SUPABASE_ANON_KEY}" >> "$BRIDGE_DIR/.env"
   fi
 
-  if ! grep -q '^UPDATE_AGENT_URL=' "$BRIDGE_DIR/.env"; then
-  echo 'UPDATE_AGENT_URL=http://172.18.0.1:3067' >> "$BRIDGE_DIR/.env"
-fi
+  set_env_value() {
+    local key="$1"
+    local value="$2"
+    if grep -q "^${key}=" "$BRIDGE_DIR/.env"; then
+      sed -i "s|^${key}=.*|${key}=${value}|" "$BRIDGE_DIR/.env"
+    else
+      echo "${key}=${value}" >> "$BRIDGE_DIR/.env"
+    fi
+  }
 
-if ! grep -q '^UPDATE_AGENT_SECRET=' "$BRIDGE_DIR/.env"; then
-  echo "UPDATE_AGENT_SECRET=${UPDATE_AGENT_SECRET}" >> "$BRIDGE_DIR/.env"
-fi
+  set_env_value BRIDGE_INSTANCE_ID "$BRIDGE_INSTANCE_ID"
+  set_env_value CONTAINER_NAME "$CONTAINER_NAME"
+  set_env_value CONTAINER_HOSTNAME "$CONTAINER_HOSTNAME"
+  set_env_value COMPOSE_PROJECT_NAME "$COMPOSE_PROJECT_NAME"
+  set_env_value BRIDGE_PORT "$BRIDGE_PORT"
+  set_env_value BRIDGE_DIR "$BRIDGE_DIR"
+  set_env_value UPDATE_AGENT_PORT "$UPDATE_AGENT_PORT"
+  set_env_value UPDATE_AGENT_URL "http://host.docker.internal:${UPDATE_AGENT_PORT}"
 
-if ! grep -q '^UPDATE_AGENT_TIMEOUT_MS=' "$BRIDGE_DIR/.env"; then
-  echo 'UPDATE_AGENT_TIMEOUT_MS=10000' >> "$BRIDGE_DIR/.env"
-fi
+  if ! grep -q '^UPDATE_AGENT_SECRET=' "$BRIDGE_DIR/.env"; then
+    echo "UPDATE_AGENT_SECRET=${UPDATE_AGENT_SECRET}" >> "$BRIDGE_DIR/.env"
+  fi
+
+  if ! grep -q '^UPDATE_AGENT_TIMEOUT_MS=' "$BRIDGE_DIR/.env"; then
+    echo 'UPDATE_AGENT_TIMEOUT_MS=10000' >> "$BRIDGE_DIR/.env"
+  fi
 
 
   rm -f "$ENV_BACKUP"
@@ -326,6 +429,12 @@ BRIDGE_HEALTH_REPORT_URL=${SUPABASE_URL}/functions/v1/report-bridge-health
 
 TENANT_ID=${TENANT_ID}
 INSTALLATION_ID=${INSTALLATION_ID}
+BRIDGE_INSTANCE_ID=${BRIDGE_INSTANCE_ID}
+CONTAINER_NAME=${CONTAINER_NAME}
+CONTAINER_HOSTNAME=${CONTAINER_HOSTNAME}
+COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}
+BRIDGE_PORT=${BRIDGE_PORT}
+BRIDGE_DIR=${BRIDGE_DIR}
 DEVICE_SECRET=${DEVICE_SECRET}
 BRIDGE_HW_FINGERPRINT=${HARDWARE_FINGERPRINT}
 BRIDGE_VERSION=${BRIDGE_VERSION}
@@ -335,7 +444,8 @@ COMMAND_POLL_ENABLED=true
 HEALTH_REPORT_ENABLED=true
 TERMINAL_PORT=3066
 
-UPDATE_AGENT_URL=http://172.18.0.1:3067
+UPDATE_AGENT_PORT=${UPDATE_AGENT_PORT}
+UPDATE_AGENT_URL=http://host.docker.internal:${UPDATE_AGENT_PORT}
 UPDATE_AGENT_SECRET=${UPDATE_AGENT_SECRET}
 UPDATE_AGENT_TIMEOUT_MS=10000
 
@@ -368,12 +478,12 @@ echo "[8/8] Enabling Bridge update agent..."
 
 systemctl disable --now billflow-updater.service 2>/dev/null || true
 systemctl daemon-reload
-systemctl enable --now bridge-update-agent.service
+systemctl enable --now "$UPDATE_AGENT_SERVICE"
 
 sleep 5
-if ! docker inspect -f '{{.State.Running}}' noc-server 2>/dev/null | grep -q true; then
+if ! docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null | grep -q true; then
   echo "❌ Bridge container did not start."
-  docker compose -f "$BRIDGE_DIR/docker-compose.prod.yml" logs --tail=80 || true
+  docker compose --env-file "$BRIDGE_DIR/.env" -f "$BRIDGE_DIR/docker-compose.prod.yml" logs --tail=80 || true
   exit 1
 fi
 

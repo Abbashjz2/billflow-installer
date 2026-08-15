@@ -1,26 +1,23 @@
+name: ${COMPOSE_PROJECT_NAME:-billflow-bridge}
 services:
   noc-server:
     image: ghcr.io/abbashjz2/billflow-bridge:${BRIDGE_VERSION}
 
-    container_name: noc-server
-    hostname: bridge-server
+    container_name: ${CONTAINER_NAME:-noc-server}
+    hostname: ${CONTAINER_HOSTNAME:-bridge-server}
     restart: unless-stopped
 
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     ports:
-      - "3066:3066"
+      - "${BRIDGE_PORT:-3066}:3066"
 
     volumes:
-      # Linux host metrics and hardware information
       - /sys:/host/sys:ro
-
-      # Host operating-system information
       - /etc/os-release:/host/etc/os-release:ro
-
-      # Host filesystem for disk metrics
       - /:/host/root:ro
-
-      # Writable Bridge configuration
-      - /opt/billflow-bridge:/bridge-config
+      - ${BRIDGE_DIR:-/opt/billflow-bridge}:/bridge-config
 
     environment:
       BRIDGE_ENV_FILE: /bridge-config/.env

@@ -3,7 +3,12 @@
 set -euo pipefail
 
 TARGET_VERSION="${1:-}"
-BRIDGE_DIR="/opt/billflow-bridge"
+
+# Dedicated installations keep /opt/billflow-bridge.
+# Multi-instance installations receive their own BRIDGE_DIR
+# from the instance .env loaded by systemd.
+BRIDGE_DIR="${BRIDGE_DIR:-/opt/billflow-bridge}"
+
 ENV_FILE="$BRIDGE_DIR/.env"
 PROD_ENV_FILE="$BRIDGE_DIR/.env"
 COMPOSE_FILE="$BRIDGE_DIR/docker-compose.prod.yml"

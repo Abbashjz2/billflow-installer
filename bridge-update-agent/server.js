@@ -1,9 +1,10 @@
 const http = require("http");
 const { execFile } = require("child_process");
+const path = require("path");
 
 const HOST = process.env.UPDATE_AGENT_HOST || "127.0.0.1";
-const PORT = 3067;
-const UPDATE_SCRIPT = "/opt/bridge-update-agent/update-bridge.sh";
+const PORT = Number(process.env.UPDATE_AGENT_PORT || 3067);
+const UPDATE_SCRIPT = path.join(__dirname, "update-bridge.sh");
 const UPDATE_SECRET = process.env.UPDATE_AGENT_SECRET;
 
 let updateRunning = false;

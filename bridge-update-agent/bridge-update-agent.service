@@ -6,13 +6,12 @@ Requires=docker.service
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/bridge-update-agent
-EnvironmentFile=/opt/billflow-bridge/.env
+WorkingDirectory=__UPDATE_AGENT_DIR__
+EnvironmentFile=__BRIDGE_DIR__/.env
 Environment=UPDATE_AGENT_HOST=0.0.0.0
-ExecStart=/usr/bin/node /opt/bridge-update-agent/server.js
+ExecStart=/usr/bin/node __UPDATE_AGENT_DIR__/server.js
 Restart=always
 RestartSec=5
-
 
 [Install]
 WantedBy=multi-user.target
