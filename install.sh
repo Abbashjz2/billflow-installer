@@ -13,7 +13,7 @@ for arg in "$@"; do
   esac
 done
 
-SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjYWJhdWJkbHZqemVjemZ5ZmdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExNjgzNTgsImV4cCI6MjA4Njc0NDM1OH0.NXTdq0Qzq4QYPWqYyoUz2OwDaQVmgJcae3KQg_P8aK0"
+INSTALLER_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjYWJhdWJkbHZqemVjemZ5ZmdjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExNjgzNTgsImV4cCI6MjA4Njc0NDM1OH0.NXTdq0Qzq4QYPWqYyoUz2OwDaQVmgJcae3KQg_P8aK0"
 SUPABASE_URL="https://vcabaubdlvjzeczfyfgc.supabase.co"
 ACTIVATE_URL="${SUPABASE_URL}/functions/v1/activate-bridge"
 REPO_BASE="https://raw.githubusercontent.com/abbashjz2/billflow-installer/main"
@@ -295,9 +295,9 @@ if [ "$DEV_MODE" = true ]; then
   chmod 600 "$BRIDGE_DIR/.env"
 
   if grep -q '^SUPABASE_ANON_KEY=' "$BRIDGE_DIR/.env"; then
-  sed -i "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}|" "$BRIDGE_DIR/.env"
+  sed -i "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=${INSTALLER_SUPABASE_ANON_KEY}|" "$BRIDGE_DIR/.env"
   else
-  echo "SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> "$BRIDGE_DIR/.env"
+  echo "SUPABASE_ANON_KEY=${INSTALLER_SUPABASE_ANON_KEY}" >> "$BRIDGE_DIR/.env"
   fi
 
   if ! grep -q '^UPDATE_AGENT_URL=' "$BRIDGE_DIR/.env"; then
@@ -318,7 +318,7 @@ fi
   echo "✅ Existing .env restored unchanged."
 else
   cat > "$BRIDGE_DIR/.env" <<ENVEOF
-SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+SUPABASE_ANON_KEY=${INSTALLER_SUPABASE_ANON_KEY}
 SUPABASE_URL=${SUPABASE_URL}
 SUPABASE_FUNCTIONS_URL=${SUPABASE_URL}/functions/v1
 BRIDGE_AUTH_URL=${SUPABASE_URL}/functions/v1/bridge-auth
