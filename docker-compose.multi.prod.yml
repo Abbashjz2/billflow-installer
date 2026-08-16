@@ -20,7 +20,6 @@ services:
   noc-server:
     image: ghcr.io/abbashjz2/billflow-bridge:${BRIDGE_VERSION}
     container_name: ${CONTAINER_NAME}
-    hostname: ${CONTAINER_HOSTNAME}
     restart: unless-stopped
     network_mode: "service:wireguard"
     depends_on:
