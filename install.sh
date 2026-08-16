@@ -5,6 +5,7 @@ DEV_MODE=false
 BRIDGE_INSTANCE_ID=""
 BRIDGE_PORT="3066"
 UPDATE_AGENT_PORT="3067"
+WIREGUARD_CONFIG=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -28,6 +29,14 @@ while [ "$#" -gt 0 ]; do
       BRIDGE_PORT="$2"
       shift 2
       ;;
+    --wireguard-config)
+      if [ -z "${2:-}" ]; then
+        echo "❌ --wireguard-config requires a file path."
+        exit 1
+      fi
+      WIREGUARD_CONFIG="$2"
+      shift 2
+      ;;
     --update-agent-port)
       if [ -z "${2:-}" ]; then
         echo "❌ --update-agent-port requires a value."
@@ -42,6 +51,7 @@ while [ "$#" -gt 0 ]; do
       echo "  --dev"
       echo "  --instance <name>"
       echo "  --port <port>"
+      echo "  --wireguard-config <path>   Required for --instance"
       echo "  --update-agent-port <port>"
       exit 1
       ;;
@@ -51,6 +61,13 @@ done
 if [ -n "$BRIDGE_INSTANCE_ID" ] && [[ ! "$BRIDGE_INSTANCE_ID" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$ ]]; then
   echo "❌ Invalid --instance value. Use 1-32 letters, numbers, _ or -, starting with a letter/number."
   exit 1
+fi
+
+if [ -n "$BRIDGE_INSTANCE_ID" ]; then
+  if [ -z "$WIREGUARD_CONFIG" ] || [ ! -f "$WIREGUARD_CONFIG" ]; then
+    echo "❌ Multi-instance mode requires --wireguard-config <wg0.conf>."
+    exit 1
+  fi
 fi
 
 for port_value in "$BRIDGE_PORT" "$UPDATE_AGENT_PORT"; do
@@ -167,6 +184,12 @@ fi
 
 echo "[2/8] Creating directories..."
 mkdir -p "$BRIDGE_DIR" "$UPDATE_AGENT_DIR"
+
+if [ -n "$BRIDGE_INSTANCE_ID" ]; then
+  mkdir -p "$BRIDGE_DIR/wireguard"
+  cp "$WIREGUARD_CONFIG" "$BRIDGE_DIR/wireguard/wg0.conf"
+  chmod 600 "$BRIDGE_DIR/wireguard/wg0.conf"
+fi
 
 if [ -z "$BRIDGE_INSTANCE_ID" ] && [ -f "$LEGACY_BRIDGE_DIR/.env" ] && [ ! -f "$BRIDGE_DIR/.env" ]; then
   echo "ℹ️  Migrating existing Bridge configuration..."
@@ -364,11 +387,17 @@ sed -i \
   -e "s|__BRIDGE_DIR__|${BRIDGE_DIR}|g" \
   "/etc/systemd/system/$UPDATE_AGENT_SERVICE"
 
-download_file "$REPO_BASE/docker-compose.prod.yml" \
-  "$BRIDGE_DIR/docker-compose.prod.yml"
+if [ -n "$BRIDGE_INSTANCE_ID" ]; then
+  COMPOSE_FILENAME="docker-compose.multi.prod.yml"
+else
+  COMPOSE_FILENAME="docker-compose.prod.yml"
+fi
 
-if [ ! -s "$BRIDGE_DIR/docker-compose.prod.yml" ]; then
-  echo "❌ Failed to download docker-compose.prod.yml"
+download_file "$REPO_BASE/$COMPOSE_FILENAME" \
+  "$BRIDGE_DIR/$COMPOSE_FILENAME"
+
+if [ ! -s "$BRIDGE_DIR/$COMPOSE_FILENAME" ]; then
+  echo "❌ Failed to download $COMPOSE_FILENAME"
   exit 1
 fi
 
@@ -465,12 +494,12 @@ cd "$BRIDGE_DIR"
 
 docker compose \
   --env-file .env \
-  -f docker-compose.prod.yml \
+  -f "$COMPOSE_FILENAME" \
   pull
 
 docker compose \
   --env-file .env \
-  -f docker-compose.prod.yml \
+  -f "$COMPOSE_FILENAME" \
   up -d
 
 
@@ -483,7 +512,7 @@ systemctl enable --now "$UPDATE_AGENT_SERVICE"
 sleep 5
 if ! docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null | grep -q true; then
   echo "❌ Bridge container did not start."
-  docker compose --env-file "$BRIDGE_DIR/.env" -f "$BRIDGE_DIR/docker-compose.prod.yml" logs --tail=80 || true
+  docker compose --env-file "$BRIDGE_DIR/.env" -f "$BRIDGE_DIR/$COMPOSE_FILENAME" logs --tail=80 || true
   exit 1
 fi
 

@@ -9,6 +9,7 @@ User=root
 WorkingDirectory=__UPDATE_AGENT_DIR__
 EnvironmentFile=__BRIDGE_DIR__/.env
 Environment=UPDATE_AGENT_HOST=0.0.0.0
+Environment=UPDATE_SCRIPT=__UPDATE_AGENT_DIR__/update-bridge.sh
 ExecStart=/usr/bin/node __UPDATE_AGENT_DIR__/server.js
 Restart=always
 RestartSec=5

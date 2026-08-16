@@ -11,7 +11,11 @@ BRIDGE_DIR="${BRIDGE_DIR:-/opt/billflow-bridge}"
 
 ENV_FILE="$BRIDGE_DIR/.env"
 PROD_ENV_FILE="$BRIDGE_DIR/.env"
-COMPOSE_FILE="$BRIDGE_DIR/docker-compose.prod.yml"
+if [ -n "${BRIDGE_INSTANCE_ID:-}" ]; then
+  COMPOSE_FILE="$BRIDGE_DIR/docker-compose.multi.prod.yml"
+else
+  COMPOSE_FILE="$BRIDGE_DIR/docker-compose.prod.yml"
+fi
 
 if [[ ! "$TARGET_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "Invalid version. Expected format: MAJOR.MINOR.PATCH"

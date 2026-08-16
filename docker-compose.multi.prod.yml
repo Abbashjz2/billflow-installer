@@ -1,0 +1,36 @@
+name: ${COMPOSE_PROJECT_NAME}
+
+services:
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: ${CONTAINER_NAME}-net
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    volumes:
+      - ${BRIDGE_DIR}/wireguard:/config/wg_confs:ro
+      - /lib/modules:/lib/modules:ro
+    ports:
+      - "${BRIDGE_PORT}:3066"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  noc-server:
+    image: ghcr.io/abbashjz2/billflow-bridge:${BRIDGE_VERSION}
+    container_name: ${CONTAINER_NAME}
+    hostname: ${CONTAINER_HOSTNAME}
+    restart: unless-stopped
+    network_mode: "service:wireguard"
+    depends_on:
+      - wireguard
+    volumes:
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /:/host/root:ro
+      - ${BRIDGE_DIR}:/bridge-config
+    environment:
+      BRIDGE_ENV_FILE: /bridge-config/.env
+    env_file:
+      - .env
